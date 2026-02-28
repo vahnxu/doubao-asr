@@ -1,6 +1,6 @@
 # doubao-asr
 
-> Agent Skill for transcribing audio via ByteDance Volcengine **Seed-ASR 2.0** (豆包录音文件识别模型2.0)
+> Agent Skill for transcribing audio files via ByteDance Volcengine **Seed-ASR 2.0** (豆包录音文件识别模型2.0)
 
 Best-in-class Chinese speech recognition — Mandarin, Cantonese, Sichuan dialect, and 13+ languages. With speaker diarization, up to 5 hours / 512MB per file.
 
@@ -8,11 +8,11 @@ Best-in-class Chinese speech recognition — Mandarin, Cantonese, Sichuan dialec
 
 ## Why this skill?
 
-Setting up Volcengine's Doubao ASR from scratch involves **4 environment variables across 3 different console pages** (Speech console, IAM, TOS). Without guidance, this typically takes 1-2 hours of doc-hunting and trial-and-error.
+Setting up Volcengine's Doubao Audio File Recognition 2.0 (豆包录音文件识别模型2.0, recorded audio → text) from scratch involves **4 environment variables across 3 different console pages** (Speech console, IAM, TOS). Without guidance, this typically takes 1-2 hours of doc-hunting and trial-and-error.
 
 This skill provides **step-by-step bilingual setup instructions** (中英双语) baked into `SKILL.md`, so your AI agent can walk you through the entire process in ~10 minutes.
 
-从零配置火山引擎豆包语音转写涉及 **3 个不同控制台页面的 4 个环境变量**。没有引导的话通常需要 1-2 小时翻文档踩坑。本 skill 在 `SKILL.md` 中内置了**中英双语分步引导**，AI agent 可以在约 10 分钟内带你完成全部配置。
+从零配置火山引擎豆包录音文件识别模型2.0（录音转文字）涉及 **3 个不同控制台页面的 4 个环境变量**。没有引导的话通常需要 1-2 小时翻文档踩坑。本 skill 在 `SKILL.md` 中内置了**中英双语分步引导**，AI agent 可以在约 10 分钟内带你完成全部配置。
 
 ## Install
 

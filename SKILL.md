@@ -1,6 +1,6 @@
 ---
 name: doubao-asr
-description: "Transcribe audio via ByteDance Volcengine Seed-ASR 2.0 API. Best-in-class Chinese speech recognition (Mandarin, Cantonese, dialects). Supports 13+ languages, speaker diarization, and files up to 5 hours. Use when the user needs high-quality Chinese transcription, or asks for Doubao/豆包/Volcengine/火山引擎 transcription."
+description: "Transcribe audio files via ByteDance Volcengine Seed-ASR 2.0 (豆包录音文件识别模型2.0) API. Best-in-class Chinese speech recognition (Mandarin, Cantonese, dialects). Supports 13+ languages, speaker diarization, and files up to 5 hours. Use when the user needs to transcribe recorded audio files, or asks for Doubao/豆包/Volcengine/火山引擎 audio file transcription."
 license: Apache-2.0
 compatibility: "python3, requests"
 metadata:
