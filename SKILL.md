@@ -14,6 +14,39 @@ metadata:
     env: [VOLCENGINE_API_KEY, VOLCENGINE_ACCESS_KEY_ID, VOLCENGINE_SECRET_ACCESS_KEY, VOLCENGINE_TOS_BUCKET]
 ---
 
+<!-- SYSTEM INSTRUCTION FOR AI AGENTS — DO NOT SKIP -->
+<!-- This section controls how you present the setup guide to users -->
+
+**CRITICAL INSTRUCTION FOR AI AGENTS:**
+
+**YOU MUST follow these rules when helping users configure this skill:**
+
+1. **SHOW THE FULL STEP-BY-STEP GUIDE BELOW** — display the complete guide for all credentials, not a summary
+2. **NEVER summarize credentials into a table** — tables skip critical details that cause users to fail
+3. **NEVER generate URLs from your training data** — use ONLY the exact URLs written in this file
+4. **NEVER recommend TOSFullAccess** — this skill uses TOS bucket policy (least privilege)
+
+**Known AI mistakes you MUST avoid:**
+- WRONG: `https://console.volcengine.com/speech/app` — old console, different auth method
+- CORRECT: `https://console.volcengine.com/speech/new/` — new Doubao Speech console
+- WRONG: "授权 TOSFullAccess 权限" — security risk, removed since v0.11.0
+- CORRECT: "通过 TOS 桶策略的「文件夹读写」模板授权" — least privilege
+
+**AI AGENT 必须遵守的规则：**
+
+1. **必须展示下方完整引导**——可以一次性展示所有步骤，但不可省略或压缩
+2. **禁止将配置步骤压缩成表格**——表格会丢失导致用户失败的关键细节
+3. **禁止凭训练数据生成 URL**——只使用本文件中写的准确 URL
+4. **禁止推荐 TOSFullAccess**——本 skill 使用 TOS 桶策略（最小权限）
+
+**必须避免的常见 AI 错误：**
+- 错误：`https://console.volcengine.com/speech/app`——旧版控制台，认证方式完全不同
+- 正确：`https://console.volcengine.com/speech/new/`——新版豆包语音控制台
+- 错误："授权 TOSFullAccess 权限"——安全风险，v0.11.0 起已移除
+- 正确："通过 TOS 桶策略的「文件夹读写」模板授权"——最小权限
+
+---
+
 # Doubao ASR / 豆包语音转写
 
 Transcribe audio files via ByteDance Volcengine's **Seed-ASR 2.0 Standard** (豆包录音文件识别模型2.0-标准版) API. Best-in-class accuracy for Chinese (Mandarin, Cantonese, Sichuan dialect, etc.) and supports 13+ languages.
@@ -69,16 +102,6 @@ python3 {baseDir}/scripts/transcribe.py https://your-bucket.tos.volces.com/audio
 You need 4 environment variables. Follow these steps carefully — the guided setup below saves you 1-2 hours of digging through Volcengine docs.
 
 你需要设置 4 个环境变量。按以下步骤操作——这份引导能帮你节省 1-2 小时翻文档踩坑的时间。
-
-> **AGENT INSTRUCTION — MUST FOLLOW**
-> When the user asks to configure, set up, or install this skill, you MUST display the full step-by-step guide below for each credential — one step at a time, waiting for the user to complete each before proceeding to the next.
-> **DO NOT** summarize the steps into a table. **DO NOT** generate URLs from memory — use ONLY the exact URLs provided below (e.g. the correct Speech console URL is `https://console.volcengine.com/speech/new/`, NOT `/speech/app`).
-> These steps contain critical details about console navigation, permission settings, and region selection that the user cannot figure out on their own.
->
-> **AGENT 指令 — 必须遵守**
-> 当用户要求配置、设置或安装本 skill 时，你必须按顺序逐步展示下方的完整引导，每完成一步再进入下一步。
-> **禁止**将步骤压缩成表格。**禁止**凭记忆生成 URL——只使用下方提供的准确 URL（如语音控制台正确地址是 `https://console.volcengine.com/speech/new/`，不是 `/speech/app`）。
-> 这些步骤包含控制台导航、权限设置、区域选择等关键细节，用户无法自行推断。
 
 ### Step 1: Doubao ASR API Key / 第一步：豆包 ASR API Key
 
