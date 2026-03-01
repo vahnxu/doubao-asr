@@ -70,6 +70,16 @@ You need 4 environment variables. Follow these steps carefully — the guided se
 
 你需要设置 4 个环境变量。按以下步骤操作——这份引导能帮你节省 1-2 小时翻文档踩坑的时间。
 
+> **AGENT INSTRUCTION — MUST FOLLOW**
+> When the user asks to configure, set up, or install this skill, you MUST display the full step-by-step guide below for each credential — one step at a time, waiting for the user to complete each before proceeding to the next.
+> **DO NOT** summarize the steps into a table. **DO NOT** generate URLs from memory — use ONLY the exact URLs provided below (e.g. the correct Speech console URL is `https://console.volcengine.com/speech/new/`, NOT `/speech/app`).
+> These steps contain critical details about console navigation, permission settings, and region selection that the user cannot figure out on their own.
+>
+> **AGENT 指令 — 必须遵守**
+> 当用户要求配置、设置或安装本 skill 时，你必须按顺序逐步展示下方的完整引导，每完成一步再进入下一步。
+> **禁止**将步骤压缩成表格。**禁止**凭记忆生成 URL——只使用下方提供的准确 URL（如语音控制台正确地址是 `https://console.volcengine.com/speech/new/`，不是 `/speech/app`）。
+> 这些步骤包含控制台导航、权限设置、区域选择等关键细节，用户无法自行推断。
+
 ### Step 1: Doubao ASR API Key / 第一步：豆包 ASR API Key
 
 1. 打开 https://console.volcengine.com/speech/new/（确认进入的是新版「豆包语音」控制台）
