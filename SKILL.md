@@ -1,6 +1,7 @@
 ---
 name: doubao-asr
-description: "Transcribe audio files via ByteDance Volcengine Seed-ASR 2.0 (豆包录音文件识别模型2.0) API. Best-in-class Chinese speech recognition (Mandarin, Cantonese, dialects). Supports 13+ languages, speaker diarization, and files up to 5 hours. Use when the user needs to transcribe recorded audio files, or asks for Doubao/豆包/Volcengine/火山引擎 audio file transcription."
+description: "Transcribe audio files via ByteDance Volcengine Seed-ASR 2.0 (豆包录音文件识别模型2.0) API. Best-in-class Chinese speech recognition (Mandarin, Cantonese, dialects). Supports 13+ languages, speaker diarization, and files up to 5 hours. Use when the user needs to transcribe recorded audio files, or asks for Doubao/豆包/Volcengine/火山引擎 audio file transcription. Do NOT use for real-time/streaming speech recognition, text-to-speech (TTS), or live captioning. 不适用于实时语音识别、语音合成(TTS)或直播字幕。"
+allowed-tools: "Bash(python3:*)"
 license: Apache-2.0
 compatibility: "python3, requests"
 metadata:
@@ -209,3 +210,21 @@ export VOLCENGINE_TOS_REGION="cn-hongkong"  # see region table above / 见上方
 WAV, MP3, MP4, M4A, OGG, FLAC — up to 5 hours, 512MB max.
 
 支持格式：WAV、MP3、MP4、M4A、OGG、FLAC——最长 5 小时，最大 512MB。
+
+## Troubleshooting / 常见问题
+
+**Error**: `TOS upload failed: 403 Forbidden`
+**Cause**: TOS bucket policy not configured, or IAM user not authorized. / TOS 桶策略未配置，或 IAM 用户未授权。
+**Solution**: Go to TOS bucket → Permission Management → Bucket Authorization Policy → Create Policy → select "Folder Read/Write" template. See Step 3 above. / 进入 TOS 桶 → 权限管理 → 存储桶授权策略管理 → 创建策略 → 选择「文件夹读写」模板。详见上方第三步。
+
+**Error**: `TOS upload extremely slow (~15KB/s)`
+**Cause**: Server is outside China mainland but using `cn-beijing` region. / 服务器在中国大陆以外，但使用了 `cn-beijing` 区域。
+**Solution**: Change `VOLCENGINE_TOS_REGION` to `cn-hongkong` and create a new bucket in that region. / 将 `VOLCENGINE_TOS_REGION` 改为 `cn-hongkong`，并在该区域新建存储桶。
+
+**Error**: `API returned error: invalid API key`
+**Cause**: Using old Speech console API key, or key from wrong console page. / 使用了旧版语音控制台的 API Key，或从错误的控制台页面获取。
+**Solution**: Get API key from the NEW Doubao Speech console at `https://console.volcengine.com/speech/new/`, NOT `/speech/app`. / 从新版豆包语音控制台 `https://console.volcengine.com/speech/new/` 获取 API Key，不是 `/speech/app`。
+
+**Error**: `Unsupported audio format` or transcription returns empty
+**Cause**: Audio file is corrupted, or format not in supported list. / 音频文件损坏，或格式不在支持列表中。
+**Solution**: Ensure file is one of WAV, MP3, MP4, M4A, OGG, FLAC and not corrupted. Try `--format` flag to explicitly specify format. / 确保文件是 WAV、MP3、MP4、M4A、OGG、FLAC 之一且未损坏。尝试用 `--format` 参数显式指定格式。

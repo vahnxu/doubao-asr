@@ -66,7 +66,7 @@ See the detailed setup guide in [SKILL.md](./SKILL.md#credentials-setup) — wit
 | `VOLCENGINE_ACCESS_KEY_ID` | Yes | IAM Access Key ID (starts with `AKLT`) |
 | `VOLCENGINE_SECRET_ACCESS_KEY` | Yes | IAM Secret Access Key |
 | `VOLCENGINE_TOS_BUCKET` | Yes | TOS bucket name |
-| `VOLCENGINE_TOS_REGION` | No | TOS region (default: `cn-beijing`, overseas: `cn-hongkong`) |
+| `VOLCENGINE_TOS_REGION` | Yes | TOS region code, must match bucket region. Overseas: `cn-hongkong`; China: `cn-beijing` |
 
 ## Supported formats
 
