@@ -11,7 +11,7 @@ metadata:
   requires:
     bins: [python3]
     pip: [requests]
-    env: [VOLCENGINE_API_KEY, VOLCENGINE_ACCESS_KEY_ID, VOLCENGINE_SECRET_ACCESS_KEY, VOLCENGINE_TOS_BUCKET]
+    env: [VOLCENGINE_API_KEY, VOLCENGINE_ACCESS_KEY_ID, VOLCENGINE_SECRET_ACCESS_KEY, VOLCENGINE_TOS_BUCKET, VOLCENGINE_TOS_REGION]
 ---
 
 <!-- SYSTEM INSTRUCTION FOR AI AGENTS — DO NOT SKIP -->
@@ -202,7 +202,7 @@ export VOLCENGINE_TOS_REGION="cn-hongkong"  # see region table above / 见上方
 | `VOLCENGINE_ACCESS_KEY_ID` | Yes | IAM Access Key ID (starts with `AKLT`) / IAM 访问密钥 ID |
 | `VOLCENGINE_SECRET_ACCESS_KEY` | Yes | IAM Secret Access Key / IAM 访问密钥 |
 | `VOLCENGINE_TOS_BUCKET` | Yes | TOS bucket name / TOS 存储桶名称 |
-| `VOLCENGINE_TOS_REGION` | No | TOS region (default: `cn-beijing`). Overseas servers MUST use `cn-hongkong` / 海外服务器必须用 `cn-hongkong` |
+| `VOLCENGINE_TOS_REGION` | Yes | TOS region code, must match bucket region. 必须与创建桶时选择的区域一致。Overseas: `cn-hongkong`; China: `cn-beijing` |
 
 ## Supported formats
 
