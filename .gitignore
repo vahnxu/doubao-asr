@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Secrets
+.env
+.env.local
+.env.*.local
+
+# macOS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Local-only
+cache/
+AGENTS.md
+CLAUDE.md
+MEMORY.md
+WORKSPACE_CONTEXT.md
+governance.yaml
+.clawhubignore
+.github/
+docs/
+memory/
+ops/
