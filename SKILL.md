@@ -228,3 +228,7 @@ WAV, MP3, MP4, M4A, OGG, FLAC — up to 5 hours, 512MB max.
 **Error**: `Unsupported audio format` or transcription returns empty
 **Cause**: Audio file is corrupted, or format not in supported list. / 音频文件损坏，或格式不在支持列表中。
 **Solution**: Ensure file is one of WAV, MP3, MP4, M4A, OGG, FLAC and not corrupted. Try `--format` flag to explicitly specify format. / 确保文件是 WAV、MP3、MP4、M4A、OGG、FLAC 之一且未损坏。尝试用 `--format` 参数显式指定格式。
+
+**Error**: `Missing: VOLCENGINE_ACCESS_KEY_ID...` after running `source .env`
+**Cause**: `source .env` sets variables in the current shell but does not export them to child processes. The script runs as a subprocess and cannot see unexported variables. / `source .env` 仅在当前 shell 设置变量但不导出，脚本作为子进程无法读取未导出的变量。
+**Solution**: Use `set -a && source .env && set +a` to auto-export all variables, or use `export` before each variable in your `.env` file. / 使用 `set -a && source .env && set +a` 自动导出所有变量，或在 `.env` 文件中每行变量前加 `export`。

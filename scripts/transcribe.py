@@ -296,12 +296,15 @@ def main():
     # Output
     if args.json:
         output = json.dumps(data, ensure_ascii=False, indent=2)
-    elif utterances and any(u.get("speaker") is not None for u in utterances):
+    elif utterances and any(
+        u.get("speaker") is not None or u.get("additions", {}).get("speaker") is not None
+        for u in utterances
+    ):
         # Format with speaker labels
         lines = []
         prev_speaker = None
         for u in utterances:
-            speaker = u.get("speaker")
+            speaker = u.get("speaker") or u.get("additions", {}).get("speaker")
             text = u.get("text", "").strip()
             if not text:
                 continue
