@@ -1,6 +1,6 @@
 ---
-name: Doubao ASR / 豆包语音转写
-description: "Transcribe audio files via Doubao Seed-ASR 2.0 (豆包录音文件识别模型2.0, recorded audio → text) API from ByteDance/Volcengine. Best-in-class Chinese speech recognition. 调用字节跳动火山引擎「豆包录音文件识别模型2.0」转写录音文件，中文识别效果业界领先。Use when the user needs to transcribe recorded audio files, or asks for Doubao/豆包/Volcengine/火山引擎 audio file transcription. Do NOT use for real-time/streaming speech recognition, text-to-speech (TTS), or live captioning. 不适用于实时语音识别、语音合成(TTS)或直播字幕。"
+name: doubao-asr（豆包语音转写）
+description: "Transcribe recorded audio files to text via Doubao Seed-ASR 2.0 (豆包录音文件识别模型2.0) from ByteDance/Volcengine. Best-in-class Chinese speech recognition with speaker diarization. Use this skill whenever the user wants to: convert audio/recording to text, transcribe a meeting recording or voice memo, identify who said what in a recording (说话人分离), transcribe m4a/mp3/wav/ogg/flac files, or mentions 录音转文字/豆包/火山引擎/Volcengine/Doubao ASR. Also use when the user has an audio file and needs a transcript, even if they don't explicitly say 'transcribe'. Do NOT use for real-time/streaming speech recognition, text-to-speech (TTS), live captioning, or audio format conversion."
 allowed-tools: "Bash(python3:*)"
 homepage: https://www.volcengine.com/docs/6561/1354868
 metadata:
