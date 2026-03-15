@@ -224,20 +224,45 @@ def submit(audio_url, fmt, speakers=True):
         },
     }
 
-    resp = requests.post(SUBMIT_URL, headers=headers, json=body, timeout=30)
-    status = resp.headers.get("X-Api-Status-Code", "")
-    message = resp.headers.get("X-Api-Message", "")
-    if status != "20000000":
-        sys.exit(f"Submit failed: {status} {message}")
-    return request_id
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            resp = requests.post(SUBMIT_URL, headers=headers, json=body, timeout=30)
+            status = resp.headers.get("X-Api-Status-Code", "")
+            message = resp.headers.get("X-Api-Message", "")
+            if status != "20000000":
+                sys.exit(f"Submit failed: {status} {message}")
+            return request_id
+        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as e:
+            if attempt < max_retries - 1:
+                wait = 2 ** (attempt + 1)
+                print(f"  Submit error, retrying in {wait}s... ({attempt+1}/{max_retries})",
+                      file=sys.stderr)
+                time.sleep(wait)
+            else:
+                sys.exit(f"Submit failed after {max_retries} attempts: {e}")
 
 
 def poll(request_id, timeout=600, interval=3):
     """Poll until the task completes. Returns the full result dict."""
     headers = get_headers(request_id, sequence=None)
     elapsed = 0
+    net_errors = 0
+    max_net_errors = 3
     while elapsed < timeout:
-        resp = requests.post(QUERY_URL, headers=headers, json={}, timeout=30)
+        try:
+            resp = requests.post(QUERY_URL, headers=headers, json={}, timeout=30)
+        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as e:
+            net_errors += 1
+            if net_errors >= max_net_errors:
+                sys.exit(f"Poll failed after {max_net_errors} consecutive network errors: {e}")
+            wait = 2 ** net_errors
+            print(f"\n  Poll network error, retrying in {wait}s... ({net_errors}/{max_net_errors})",
+                  file=sys.stderr)
+            time.sleep(wait)
+            elapsed += wait
+            continue
+        net_errors = 0  # reset on successful request
         status = resp.headers.get("X-Api-Status-Code", "")
         if status == "20000000":
             return resp.json()
