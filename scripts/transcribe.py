@@ -193,7 +193,7 @@ def get_headers(request_id, sequence=-1):
         sys.exit(
             "Missing VOLCENGINE_API_KEY\n\n"
             "Get your API key from the Volcengine Speech console:\n"
-            "  https://console.volcengine.com/speech/app\n\n"
+            "  https://console.volcengine.com/speech/new/\n\n"
             "Set: export VOLCENGINE_API_KEY='your_api_key'"
         )
     headers = {
