@@ -29,5 +29,6 @@ governance.yaml
 .clawhubignore
 .github/
 docs/
+memory/runtime/*
 memory/
 ops/
