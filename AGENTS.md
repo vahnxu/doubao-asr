@@ -39,6 +39,7 @@ Read `WORKSPACE_CONTEXT.md` before starting substantial work.
 
 - Changelog scope：单项目写项目日志目录；跨项目/workspace 级写 `AI_Workspace/docs/logs/`。
 - DOC_SCOPE：评估 Spec / 业务持续追加文档、OBS&iCloud、HANDOFF、memory、Runbook/README/Engineering Contract、治理活文档，并对相关子项逐项说明更新或跳过理由。
+- **Q&A 档案定位（2026-06-08）**：治理 Q&A（`docs/20260302_治理重构Q&A手册.md`）是决策/事故档案，仅事故复盘或架构级决策变更才追加新 Q（末尾稳定编号，不在已有 Q 间插入）；普通规则微调只更新基线/Spec，不进 Q&A。
 - **TASK_OBJECT_SPEC_SYNC（MANDATORY，2026-04-29，全 repo）**：有明确任务对象且存在权威 Spec / Contract / Runbook / README / 持续追加文档时，收尾必须识别完整文档集、打开 grep/read 当前事实与待办，并更新或说明跳过理由。
 - **TOPIC_CANONICAL_SINK（MANDATORY，2026-05-04，全 repo）**：同一稳定主题落 Markdown / OBS / iCloud 前，先搜索既有 canonical sink，判断归并或拆分，并在 final / task log 说明关键词、范围和理由。
 - **ARTICLE_DISCUSSION_LOG（MANDATORY，2026-05-05，全 repo）**：实质讨论外部文章/帖子/推文/截图/链接且有复盘价值时，收尾落到正确日志或 canonical sink，记录作者、标题/主题、链接、来源类型、日期、摘要、关键数字/机制、agent 判断、用户决定。
