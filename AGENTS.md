@@ -32,9 +32,8 @@ Read `WORKSPACE_CONTEXT.md` before starting substantial work.
 
 ### Closeout Triggers
 
-- **落盘** = L2 publish：repo 源变更必须写入/readback、commit、push 当前 repo durable remote，并回读 ahead/behind；只做 local commit 是部分完成，必须 FAIL_LOUD。
-- **收尾 / Fabric 收尾 / agent EC 收尾 / session 收尾** = L3/Fabric 契约执行；若有 repo 源变更，也必须先完成上面的 L2 publish。
-- Stop hook / wrapper autosync 只是兜底，不能替代用户明确说“落盘”后的显式 push/readback。
+- **落盘 / 收尾（用户口令层完全同义，2026-06-08；含 Fabric 收尾 / agent EC 收尾 / session 收尾）** = 任一词都要求：repo 源变更写入/readback、commit、push 当前 repo durable remote、回读 ahead/behind（L2 publish）**并** L3/Fabric 契约执行（DOC_SCOPE 7 类 + Underlying Patterns 反演 + 子 agent 经验回写）。只做 local commit / autosync 是部分完成，必须 FAIL_LOUD。
+- Stop hook / wrapper autosync 只是 L2-only push-only 内部兜底，不代表用户口令“落盘/收尾”，不自动满足 DOC_SCOPE。
 
 ### Closeout Checklist (Read Details On Demand)
 
