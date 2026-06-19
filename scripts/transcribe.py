@@ -1,11 +1,15 @@
 #!/usr/bin/env python3
 """
-Doubao (豆包) Seed-ASR 2.0 Standard — audio file transcription.
+Doubao (豆包) Seed-ASR 2.0 — audio file transcription.
 
 API docs: https://www.volcengine.com/docs/6561/1354868
-Endpoint: https://openspeech.bytedance.com/api/v3/auc/bigmodel/
 Auth: x-api-key (single API key from Volcengine Speech console)
-Resource-Id: volc.seedasr.auc
+
+Three recognition tiers (--tier, default standard):
+  standard : volc.seedasr.auc      submit→poll   real-time-ish (default; unchanged behavior)
+  express  : volc.bigasr.auc_turbo recognize/flash single-shot, audio ≤2h, faster return
+  offpeak  : volc.bigasr.auc_idle  idle submit→query  async queue, completes within 24h, cheapest
+Output: plain text (speaker-labelled when diarization on), --srt subtitles, or --json.
 
 Audio upload: The Doubao API requires a publicly accessible URL.
 This script uploads audio to Volcengine TOS (object storage) via presigned URL,
@@ -29,9 +33,29 @@ try:
 except ImportError:
     sys.exit("requests is required: pip install requests")
 
-SUBMIT_URL = "https://openspeech.bytedance.com/api/v3/auc/bigmodel/submit"
-QUERY_URL = "https://openspeech.bytedance.com/api/v3/auc/bigmodel/query"
-RESOURCE_ID = "volc.seedasr.auc"
+_API_BASE = "https://openspeech.bytedance.com/api/v3/auc/bigmodel"
+
+# Tier routing. resource_id + endpoints verified against official Volcengine docs
+# (2026-06-19). Do NOT alter these literal values without re-verifying the docs.
+TIERS = {
+    "standard": {
+        "resource_id": "volc.seedasr.auc",
+        "submit": f"{_API_BASE}/submit",
+        "query": f"{_API_BASE}/query",
+        "flow": "poll",
+    },
+    "express": {
+        "resource_id": "volc.bigasr.auc_turbo",
+        "recognize": f"{_API_BASE}/recognize/flash",
+        "flow": "flash",
+    },
+    "offpeak": {
+        "resource_id": "volc.bigasr.auc_idle",
+        "submit": f"{_API_BASE}/idle/submit",
+        "query": f"{_API_BASE}/idle/query",
+        "flow": "poll",
+    },
+}
 
 FORMAT_MAP = {
     ".m4a": "m4a",
@@ -187,7 +211,7 @@ def upload_audio(filepath, fmt):
 
 # --- Doubao ASR API ---
 
-def get_headers(request_id, sequence=-1):
+def get_headers(request_id, resource_id, sequence=-1):
     api_key = os.environ.get("VOLCENGINE_API_KEY", "")
     if not api_key:
         sys.exit(
@@ -199,7 +223,7 @@ def get_headers(request_id, sequence=-1):
     headers = {
         "Content-Type": "application/json",
         "x-api-key": api_key,
-        "X-Api-Resource-Id": RESOURCE_ID,
+        "X-Api-Resource-Id": resource_id,
         "X-Api-Request-Id": request_id,
     }
     if sequence is not None:
@@ -207,11 +231,10 @@ def get_headers(request_id, sequence=-1):
     return headers
 
 
-def submit(audio_url, fmt, speakers=True):
-    """Submit a transcription task. Returns request_id."""
-    request_id = str(uuid.uuid4())
-    headers = get_headers(request_id, sequence=-1)
-    body = {
+def build_request_body(audio_url, fmt, speakers):
+    """Request body shared by all tiers (express drops only callback/客服 fields,
+    which this skill never sends, so the body is identical across tiers)."""
+    return {
         "user": {"uid": "openclaw-doubao-asr"},
         "audio": {"url": audio_url, "format": fmt},
         "request": {
@@ -224,10 +247,19 @@ def submit(audio_url, fmt, speakers=True):
         },
     }
 
+
+def submit(audio_url, fmt, tier, speakers=True):
+    """Submit a transcription task for a poll-flow tier (standard/offpeak).
+    Returns request_id."""
+    cfg = TIERS[tier]
+    request_id = str(uuid.uuid4())
+    headers = get_headers(request_id, cfg["resource_id"], sequence=-1)
+    body = build_request_body(audio_url, fmt, speakers)
+
     max_retries = 3
     for attempt in range(max_retries):
         try:
-            resp = requests.post(SUBMIT_URL, headers=headers, json=body, timeout=30)
+            resp = requests.post(cfg["submit"], headers=headers, json=body, timeout=30)
             status = resp.headers.get("X-Api-Status-Code", "")
             message = resp.headers.get("X-Api-Message", "")
             if status != "20000000":
@@ -243,15 +275,47 @@ def submit(audio_url, fmt, speakers=True):
                 sys.exit(f"Submit failed after {max_retries} attempts: {e}")
 
 
-def poll(request_id, timeout=600, interval=3):
+def recognize_express(audio_url, fmt, speakers=True, timeout=300):
+    """Express (极速版) single-shot recognition. One request returns the full
+    result (same envelope as a standard query response): {"result": {...}}.
+    No submit/query polling. Audio must be <= 2h."""
+    cfg = TIERS["express"]
+    request_id = str(uuid.uuid4())
+    headers = get_headers(request_id, cfg["resource_id"], sequence=None)
+    body = build_request_body(audio_url, fmt, speakers)
+
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            resp = requests.post(cfg["recognize"], headers=headers, json=body, timeout=timeout)
+            status = resp.headers.get("X-Api-Status-Code", "")
+            message = resp.headers.get("X-Api-Message", "")
+            if status == "20000003":
+                return {"result": {"text": "", "utterances": []}}
+            if status != "20000000":
+                sys.exit(f"Express recognition failed: {status} {message}")
+            return resp.json()
+        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as e:
+            if attempt < max_retries - 1:
+                wait = 2 ** (attempt + 1)
+                print(f"  Express error, retrying in {wait}s... ({attempt+1}/{max_retries})",
+                      file=sys.stderr)
+                time.sleep(wait)
+            else:
+                sys.exit(f"Express recognition failed after {max_retries} attempts: {e}")
+
+
+def poll(request_id, tier, timeout=600, interval=3):
     """Poll until the task completes. Returns the full result dict."""
-    headers = get_headers(request_id, sequence=None)
+    cfg = TIERS[tier]
+    query_url = cfg["query"]
+    headers = get_headers(request_id, cfg["resource_id"], sequence=None)
     elapsed = 0
     net_errors = 0
     max_net_errors = 3
     while elapsed < timeout:
         try:
-            resp = requests.post(QUERY_URL, headers=headers, json={}, timeout=30)
+            resp = requests.post(query_url, headers=headers, json={}, timeout=30)
         except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as e:
             net_errors += 1
             if net_errors >= max_net_errors:
@@ -279,17 +343,138 @@ def poll(request_id, timeout=600, interval=3):
     sys.exit(f"Timeout after {timeout}s")
 
 
+def query_once(request_id, tier):
+    """Single query for an offpeak task. Returns (state, data) where state is one
+    of 'done' | 'pending' | 'silent'. Does not loop (offpeak completes within 24h)."""
+    cfg = TIERS[tier]
+    headers = get_headers(request_id, cfg["resource_id"], sequence=None)
+    resp = requests.post(cfg["query"], headers=headers, json={}, timeout=30)
+    status = resp.headers.get("X-Api-Status-Code", "")
+    if status == "20000000":
+        return "done", resp.json()
+    if status in ("20000001", "20000002"):
+        return "pending", None
+    if status == "20000003":
+        return "silent", {"result": {"text": "", "utterances": []}}
+    sys.exit(f"Query failed: {status} {resp.headers.get('X-Api-Message', '')}")
+
+
+def _srt_timestamp(ms):
+    ms = int(ms)
+    h, ms = divmod(ms, 3600000)
+    m, ms = divmod(ms, 60000)
+    s, ms = divmod(ms, 1000)
+    return f"{h:02d}:{m:02d}:{s:02d},{ms:03d}"
+
+
+def to_srt(utterances):
+    """Build SRT subtitles from utterances. Skips empty-text or
+    missing-timestamp utterances; preserves input order; numbers sequentially."""
+    blocks = []
+    idx = 1
+    for u in utterances:
+        text = (u.get("text") or "").strip()
+        if not text:
+            continue
+        start = u.get("start_time")
+        end = u.get("end_time")
+        if start is None or end is None:
+            continue
+        speaker = u.get("speaker")
+        if speaker is None:
+            speaker = u.get("additions", {}).get("speaker")
+        caption = f"Speaker {speaker}: {text}" if speaker is not None else text
+        blocks.append(f"{idx}\n{_srt_timestamp(start)} --> {_srt_timestamp(end)}\n{caption}\n")
+        idx += 1
+    return "\n".join(blocks)
+
+
+def format_output(data, srt=False, as_json=False):
+    """Shared output formatter for all tiers."""
+    result = data.get("result", {})
+    utterances = result.get("utterances", [])
+    if as_json:
+        return json.dumps(data, ensure_ascii=False, indent=2)
+    if srt:
+        return to_srt(utterances)
+    has_speakers = any(
+        u.get("speaker") is not None or u.get("additions", {}).get("speaker") is not None
+        for u in utterances
+    )
+    if utterances and has_speakers:
+        lines = []
+        prev_speaker = None
+        for u in utterances:
+            speaker = u.get("speaker")
+            if speaker is None:
+                speaker = u.get("additions", {}).get("speaker")
+            text = u.get("text", "").strip()
+            if not text:
+                continue
+            if speaker != prev_speaker:
+                label = f"Speaker {speaker}" if speaker is not None else "Speaker ?"
+                lines.append(f"\n{label}:")
+                prev_speaker = speaker
+            lines.append(text)
+        return "\n".join(lines).strip()
+    return result.get("text", "")
+
+
+def write_output(output, out_path):
+    """Write to out_path (realpath-guarded to CWD or /tmp) or stdout."""
+    if out_path:
+        real = os.path.realpath(out_path)
+        cwd = os.path.realpath(os.getcwd())
+        tmp = os.path.realpath("/tmp")
+        if not (real.startswith(cwd + os.sep) or real.startswith(tmp + os.sep)):
+            sys.exit(f"Output path not allowed (must be under working directory or /tmp): {out_path}")
+        os.makedirs(os.path.dirname(real) or ".", exist_ok=True)
+        with open(real, "w", encoding="utf-8") as f:
+            f.write(output)
+        print(out_path)
+    else:
+        print(output)
+
+
 def main():
     parser = argparse.ArgumentParser(description="Doubao Seed-ASR 2.0 transcription")
-    parser.add_argument("audio", help="Path to audio file (or URL)")
+    parser.add_argument("audio", nargs="?", help="Path to audio file (or URL). Omit only with --query.")
+    parser.add_argument("--tier", choices=["standard", "express", "offpeak"], default="standard",
+                        help="Recognition tier: standard (default), express (极速版, faster, single-shot, <=2h), "
+                             "offpeak (闲时版, cheapest, async queue, completes within 24h)")
+    parser.add_argument("--query", metavar="REQUEST_ID",
+                        help="Query a previously submitted offpeak (闲时版) task by its request_id")
     parser.add_argument("--format", dest="fmt", help="Audio format (auto-detected from extension)")
     parser.add_argument("--out", help="Output file path (default: stdout)")
-    parser.add_argument("--json", action="store_true", help="Output full JSON result")
+    # Output format selectors are mutually exclusive; default is plain text.
+    fmt_group = parser.add_mutually_exclusive_group()
+    fmt_group.add_argument("--json", action="store_true", help="Output full JSON result")
+    fmt_group.add_argument("--srt", action="store_true",
+                           help="Output SRT subtitles (written to --out path if given, else stdout)")
     parser.add_argument("--no-speakers", action="store_true", help="Disable speaker diarization (enabled by default)")
     parser.add_argument("--timeout", type=int, default=600, help="Max wait seconds (default: 600)")
     args = parser.parse_args()
 
-    # Support direct URL input (skip upload)
+    # --- offpeak query mode: fetch a previously submitted task, then format ---
+    if args.query:
+        if args.tier != "offpeak":
+            sys.exit("--query is only valid with --tier offpeak")
+        if not re.fullmatch(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}", args.query):
+            sys.exit("Invalid --query request_id (must be a UUID)")
+        state, data = query_once(args.query, "offpeak")
+        if state == "pending":
+            # Not an error — distinct retry-later exit code (75 = EX_TEMPFAIL) so
+            # polling wrappers can tell "pending" apart from "done" (0) and "error" (1).
+            print("Off-peak task still in queue. Query again later (completes within 24h).",
+                  file=sys.stderr)
+            sys.exit(75)
+        write_output(format_output(data, srt=args.srt, as_json=args.json), args.out)
+        return
+
+    if not args.audio:
+        sys.exit("audio file/URL required (or use: --query <request_id> --tier offpeak)")
+
+    # Resolve audio to a public URL (direct http(s) URL, or upload local file to TOS)
     if args.audio.startswith("http://") or args.audio.startswith("https://"):
         audio_url = args.audio
         fmt = args.fmt
@@ -307,54 +492,26 @@ def main():
             sys.exit(f"Unknown audio format: {ext}. Use --format to specify.")
         audio_url = upload_audio(args.audio, fmt)
 
-    # Submit task
-    print("  Submitting transcription task...", file=sys.stderr)
-    request_id = submit(audio_url, fmt, speakers=not args.no_speakers)
+    speakers = not args.no_speakers
 
-    # Poll for result
-    data = poll(request_id, timeout=args.timeout)
-    print("", file=sys.stderr)  # newline after progress
-
-    result = data.get("result", {})
-    utterances = result.get("utterances", [])
-
-    # Output
-    if args.json:
-        output = json.dumps(data, ensure_ascii=False, indent=2)
-    elif utterances and any(
-        u.get("speaker") is not None or u.get("additions", {}).get("speaker") is not None
-        for u in utterances
-    ):
-        # Format with speaker labels
-        lines = []
-        prev_speaker = None
-        for u in utterances:
-            speaker = u.get("speaker") or u.get("additions", {}).get("speaker")
-            text = u.get("text", "").strip()
-            if not text:
-                continue
-            if speaker != prev_speaker:
-                label = f"Speaker {speaker}" if speaker is not None else "Speaker ?"
-                lines.append(f"\n{label}:")
-                prev_speaker = speaker
-            lines.append(text)
-        output = "\n".join(lines).strip()
+    if args.tier == "express":
+        print("  Express recognition (single-shot, <=2h)...", file=sys.stderr)
+        data = recognize_express(audio_url, fmt, speakers=speakers)
     else:
-        output = result.get("text", "")
+        tier_label = "" if args.tier == "standard" else f" ({args.tier})"
+        print(f"  Submitting transcription task{tier_label}...", file=sys.stderr)
+        request_id = submit(audio_url, fmt, args.tier, speakers=speakers)
+        if args.tier == "offpeak":
+            # Async queue (<=24h): do NOT block-poll. Return the id for later --query.
+            print("\n  Off-peak task submitted (async, completes within 24h).", file=sys.stderr)
+            print(f"  Fetch the result later with:\n"
+                  f"    transcribe.py --query {request_id} --tier offpeak", file=sys.stderr)
+            print(request_id)  # stdout = request_id for programmatic capture
+            return
+        data = poll(request_id, args.tier, timeout=args.timeout)
+        print("", file=sys.stderr)  # newline after progress
 
-    if args.out:
-        out_path = os.path.realpath(args.out)
-        # Block writes outside /tmp and current working directory
-        cwd = os.path.realpath(os.getcwd())
-        tmp = os.path.realpath("/tmp")
-        if not (out_path.startswith(cwd + os.sep) or out_path.startswith(tmp + os.sep)):
-            sys.exit(f"Output path not allowed (must be under working directory or /tmp): {args.out}")
-        os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
-        with open(out_path, "w", encoding="utf-8") as f:
-            f.write(output)
-        print(args.out)
-    else:
-        print(output)
+    write_output(format_output(data, srt=args.srt, as_json=args.json), args.out)
 
 
 if __name__ == "__main__":

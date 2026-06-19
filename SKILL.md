@@ -119,7 +119,27 @@ python3 {baseDir}/scripts/transcribe.py /path/to/audio.mp3 --format mp3
 python3 {baseDir}/scripts/transcribe.py /path/to/audio.m4a --json --out /tmp/result.json
 python3 {baseDir}/scripts/transcribe.py /path/to/audio.m4a --no-speakers  # disable speaker diarization / 关闭说话人分离
 python3 {baseDir}/scripts/transcribe.py https://example.com/audio.mp3  # direct URL (skip upload)
+python3 {baseDir}/scripts/transcribe.py /path/to/audio.m4a --srt --out /tmp/subs.srt  # SRT subtitles / SRT 字幕
 ```
+
+### Recognition tiers (`--tier`) / 识别版本
+
+```bash
+# standard (default) — real-time-ish, submit→poll. Omit --tier for current behavior.
+python3 {baseDir}/scripts/transcribe.py audio.m4a
+
+# express (极速版) — single-shot, faster return, audio must be ≤2h
+python3 {baseDir}/scripts/transcribe.py audio.m4a --tier express
+
+# offpeak (闲时版) — cheapest, async queue, completes within 24h.
+# Submitting returns a request_id; fetch the result later:
+python3 {baseDir}/scripts/transcribe.py audio.m4a --tier offpeak        # prints request_id
+python3 {baseDir}/scripts/transcribe.py --query <request_id> --tier offpeak   # fetch when ready
+python3 {baseDir}/scripts/transcribe.py --query <request_id> --tier offpeak --srt --out /tmp/subs.srt
+```
+
+- `--srt` works with any tier (and with `--query`); it builds SRT from per-utterance timestamps.
+- `express` requires the `volc.bigasr.auc_turbo` resource enabled; `offpeak` requires `volc.bigasr.auc_idle`. Both are enabled in the same Volcengine Speech console as the standard model.
 
 ## How it works
 
