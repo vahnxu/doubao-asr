@@ -282,6 +282,10 @@ WAV, MP3, MP4, M4A, OGG, FLAC — up to 5 hours, 512MB max.
 **Cause**: TOS bucket policy not configured, or IAM user not authorized. / TOS 桶策略未配置，或 IAM 用户未授权。
 **Solution**: Go to TOS bucket → Permission Management → Bucket Authorization Policy → Create Policy → select "Folder Read/Write" template. See Step 3 above. / 进入 TOS 桶 → 权限管理 → 存储桶授权策略管理 → 创建策略 → 选择「文件夹读写」模板。详见上方第三步。
 
+**Error**: `Query failed: 45000006 [Invalid audio URI]` / `audio download failed` (upload succeeded, transcription fails)
+**Cause**: The ASR service cannot download the audio from TOS. The script submits a presigned GET URL, which is only valid if the signing IAM sub-user itself has READ permission on the object. A bucket policy that grants write but not read, or one with IP-restriction conditions, lets the PUT upload succeed while the ASR-side GET fails. / ASR 服务下载不到 TOS 里的音频。脚本提交的是预签名 GET URL，其有效性取决于签名的 IAM 子用户自身是否有该对象的读权限——桶策略只授写没授读、或带 IP 限制条件时，PUT 上传成功但 ASR 侧 GET 失败。
+**Solution**: Fix the bucket policy per Step 3: "Folder Read/Write" template (read **and** write), no IP-restriction conditions. Setting the object to public read also works as a quick diagnostic but exposes audio publicly — not recommended as a fix. / 按第三步修桶策略：「文件夹读写」模板（读**和**写都要），不带 IP 限制条件。设公网读也能通（可作快速诊断），但音频会公开暴露——不推荐作为修法。
+
 **Error**: `TOS upload extremely slow (~15KB/s)`
 **Cause**: Server is outside China mainland but using `cn-beijing` region. / 服务器在中国大陆以外，但使用了 `cn-beijing` 区域。
 **Solution**: Change `VOLCENGINE_TOS_REGION` to `cn-hongkong` and create a new bucket in that region. / 将 `VOLCENGINE_TOS_REGION` 改为 `cn-hongkong`，并在该区域新建存储桶。

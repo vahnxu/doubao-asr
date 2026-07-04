@@ -211,6 +211,28 @@ def upload_audio(filepath, fmt):
 
 # --- Doubao ASR API ---
 
+# Actionable hints for known API error codes, appended to fatal error messages.
+KNOWN_ERROR_HINTS = {
+    "45000006": (
+        "The ASR service could not download the audio from TOS (Invalid audio URI).\n"
+        "This script submits a presigned GET URL, which is only valid if the signing\n"
+        "IAM sub-user itself has READ permission on the object. A bucket policy that\n"
+        "grants write but not read, or one with IP-restriction conditions, lets the\n"
+        "upload succeed while the ASR-side download fails.\n"
+        "Fix: bucket policy -> 'Folder Read/Write' template (read AND write) for your\n"
+        "sub-user, without IP restrictions. See SKILL.md Step 3 / Troubleshooting.\n"
+        "(Public-read ACL also works but exposes your audio publicly - not recommended.)"
+    ),
+}
+
+
+def api_error(prefix, status, message):
+    """Format a fatal API error, appending an actionable hint for known codes."""
+    text = f"{prefix}: {status} {message}"
+    hint = KNOWN_ERROR_HINTS.get(status)
+    return f"{text}\nHint: {hint}" if hint else text
+
+
 def get_headers(request_id, resource_id, sequence=-1):
     api_key = os.environ.get("VOLCENGINE_API_KEY", "")
     if not api_key:
@@ -263,7 +285,7 @@ def submit(audio_url, fmt, tier, speakers=True):
             status = resp.headers.get("X-Api-Status-Code", "")
             message = resp.headers.get("X-Api-Message", "")
             if status != "20000000":
-                sys.exit(f"Submit failed: {status} {message}")
+                sys.exit(api_error("Submit failed", status, message))
             return request_id
         except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as e:
             if attempt < max_retries - 1:
@@ -293,7 +315,7 @@ def recognize_express(audio_url, fmt, speakers=True, timeout=300):
             if status == "20000003":
                 return {"result": {"text": "", "utterances": []}}
             if status != "20000000":
-                sys.exit(f"Express recognition failed: {status} {message}")
+                sys.exit(api_error("Express recognition failed", status, message))
             return resp.json()
         except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as e:
             if attempt < max_retries - 1:
@@ -339,7 +361,7 @@ def poll(request_id, tier, timeout=600, interval=3):
             print("\n  Silent audio, no transcript.", file=sys.stderr)
             return {"result": {"text": "", "utterances": []}}
         message = resp.headers.get("X-Api-Message", "")
-        sys.exit(f"Query failed: {status} {message}")
+        sys.exit(api_error("Query failed", status, message))
     sys.exit(f"Timeout after {timeout}s")
 
 
@@ -356,7 +378,7 @@ def query_once(request_id, tier):
         return "pending", None
     if status == "20000003":
         return "silent", {"result": {"text": "", "utterances": []}}
-    sys.exit(f"Query failed: {status} {resp.headers.get('X-Api-Message', '')}")
+    sys.exit(api_error("Query failed", status, resp.headers.get("X-Api-Message", "")))
 
 
 def _srt_timestamp(ms):
