@@ -17,6 +17,7 @@ keeping data within Volcengine infrastructure. No extra SDK needed.
 """
 
 import argparse
+import base64
 import hashlib
 import hmac
 import json
@@ -34,6 +35,9 @@ except ImportError:
     sys.exit("requests is required: pip install requests")
 
 _API_BASE = "https://openspeech.bytedance.com/api/v3/auc/bigmodel"
+ATLAS_API_BASE = "https://api.atlascloud.ai/api/v1"
+ATLAS_MODEL = "bytedance/seed-asr-2.0"
+ATLAS_FORMATS = {"mp3", "wav", "ogg", "raw"}
 
 # Tier routing. resource_id + endpoints verified against official Volcengine docs
 # (2026-06-19). Do NOT alter these literal values without re-verifying the docs.
@@ -381,6 +385,109 @@ def query_once(request_id, tier):
     sys.exit(api_error("Query failed", status, resp.headers.get("X-Api-Message", "")))
 
 
+def atlas_api_key():
+    key = os.environ.get("ATLASCLOUD_API_KEY", "").strip()
+    if not key:
+        sys.exit(
+            "Missing ATLASCLOUD_API_KEY\n\n"
+            "Set: export ATLASCLOUD_API_KEY='your_api_key'"
+        )
+    return key
+
+
+def atlas_prediction(payload):
+    data = payload.get("data", payload)
+    if not isinstance(data, dict):
+        sys.exit("Atlas Cloud returned an invalid prediction response")
+    return data
+
+
+def atlas_audio_source(audio):
+    if audio.startswith("http://") or audio.startswith("https://"):
+        return audio
+    with open(audio, "rb") as handle:
+        return base64.b64encode(handle.read()).decode("ascii")
+
+
+def transcribe_atlas(audio, fmt, speakers=True, timeout=600, interval=2):
+    if fmt not in ATLAS_FORMATS:
+        supported = ", ".join(sorted(ATLAS_FORMATS))
+        sys.exit(f"Atlas Cloud supports these audio formats: {supported}")
+
+    api_key = atlas_api_key()
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+    body = {
+        "model": ATLAS_MODEL,
+        "audio_url": atlas_audio_source(audio),
+        "format": fmt,
+        "enable_itn": True,
+        "enable_punc": True,
+        "enable_ddc": True,
+        "enable_speaker_info": speakers,
+        "show_utterances": True,
+    }
+
+    try:
+        response = requests.post(
+            f"{ATLAS_API_BASE}/model/generateAudio",
+            headers=headers,
+            json=body,
+            timeout=120,
+        )
+    except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as exc:
+        sys.exit(f"Atlas Cloud submit failed without retry: {exc}")
+    if response.status_code != 200:
+        sys.exit(
+            f"Atlas Cloud submit failed: HTTP {response.status_code} "
+            f"{response.text[:500]}"
+        )
+
+    prediction = atlas_prediction(response.json())
+    prediction_id = prediction.get("id")
+    if not prediction_id and prediction.get("status") != "completed":
+        sys.exit("Atlas Cloud submit returned no prediction id")
+
+    elapsed = 0
+    last_read_error = ""
+    while elapsed <= timeout:
+        status = prediction.get("status")
+        if status == "completed":
+            result = prediction.get("stt_result")
+            if not isinstance(result, dict):
+                outputs = prediction.get("outputs") or []
+                result = {"text": outputs[0] if outputs else "", "utterances": []}
+            output = dict(prediction)
+            output["result"] = result
+            return output
+        if status == "failed":
+            message = prediction.get("error") or prediction.get("message") or "unknown error"
+            sys.exit(f"Atlas Cloud transcription failed: {message}")
+        if elapsed == timeout:
+            break
+
+        time.sleep(interval)
+        elapsed = min(timeout, elapsed + interval)
+        try:
+            response = requests.get(
+                f"{ATLAS_API_BASE}/model/prediction/{prediction_id}",
+                headers={"Authorization": f"Bearer {api_key}"},
+                timeout=30,
+            )
+            if response.status_code == 200:
+                prediction = atlas_prediction(response.json())
+                last_read_error = ""
+            else:
+                last_read_error = f"HTTP {response.status_code}: {response.text[:300]}"
+        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as exc:
+            last_read_error = str(exc)
+
+    detail = f": {last_read_error}" if last_read_error else ""
+    sys.exit(f"Atlas Cloud transcription timed out after {timeout}s{detail}")
+
+
 def _srt_timestamp(ms):
     ms = int(ms)
     h, ms = divmod(ms, 3600000)
@@ -461,6 +568,8 @@ def write_output(output, out_path):
 def main():
     parser = argparse.ArgumentParser(description="Doubao Seed-ASR 2.0 transcription")
     parser.add_argument("audio", nargs="?", help="Path to audio file (or URL). Omit only with --query.")
+    parser.add_argument("--provider", choices=["volcengine", "atlascloud"], default="volcengine",
+                        help="API provider: volcengine (default) or atlascloud")
     parser.add_argument("--tier", choices=["standard", "express", "offpeak"], default="standard",
                         help="Recognition tier: standard (default), express (极速版, faster, single-shot, <=2h), "
                              "offpeak (闲时版, cheapest, async queue, completes within 24h)")
@@ -479,6 +588,8 @@ def main():
 
     # --- offpeak query mode: fetch a previously submitted task, then format ---
     if args.query:
+        if args.provider != "volcengine":
+            sys.exit("--query is only supported by the volcengine provider")
         if args.tier != "offpeak":
             sys.exit("--query is only valid with --tier offpeak")
         if not re.fullmatch(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}", args.query):
@@ -496,6 +607,9 @@ def main():
     if not args.audio:
         sys.exit("audio file/URL required (or use: --query <request_id> --tier offpeak)")
 
+    if args.provider == "atlascloud" and args.tier != "standard":
+        sys.exit("--tier express/offpeak is only supported by the volcengine provider")
+
     # Resolve audio to a public URL (direct http(s) URL, or upload local file to TOS)
     if args.audio.startswith("http://") or args.audio.startswith("https://"):
         audio_url = args.audio
@@ -512,11 +626,15 @@ def main():
         fmt = args.fmt or FORMAT_MAP.get(ext)
         if not fmt:
             sys.exit(f"Unknown audio format: {ext}. Use --format to specify.")
-        audio_url = upload_audio(args.audio, fmt)
+        audio_url = args.audio if args.provider == "atlascloud" else upload_audio(args.audio, fmt)
 
     speakers = not args.no_speakers
 
-    if args.tier == "express":
+    if args.provider == "atlascloud":
+        print("  Submitting transcription task through Atlas Cloud...", file=sys.stderr)
+        data = transcribe_atlas(audio_url, fmt, speakers=speakers, timeout=args.timeout)
+        print("", file=sys.stderr)
+    elif args.tier == "express":
         print("  Express recognition (single-shot, <=2h)...", file=sys.stderr)
         data = recognize_express(audio_url, fmt, speakers=speakers)
     else:

@@ -1,6 +1,6 @@
 ---
 name: doubao-asr（豆包语音转写）
-description: "Transcribe recorded audio files to text via Doubao Seed-ASR 2.0 (豆包录音文件识别模型2.0) from ByteDance/Volcengine. Best-in-class Chinese speech recognition with speaker diarization. Use this skill whenever the user wants to: convert audio/recording to text, transcribe a meeting recording or voice memo, identify who said what in a recording (说话人分离), transcribe m4a/mp3/wav/ogg/flac files, or mentions 录音转文字/豆包/火山引擎/Volcengine/Doubao ASR. Also use when the user has an audio file and needs a transcript, even if they don't explicitly say 'transcribe'. Do NOT use for real-time/streaming speech recognition, text-to-speech (TTS), live captioning, or audio format conversion."
+description: "Transcribe recorded audio files to text via Doubao Seed-ASR 2.0 (豆包录音文件识别模型2.0) from ByteDance/Volcengine or the optional Atlas Cloud route. Best-in-class Chinese speech recognition with speaker diarization. Use this skill whenever the user wants to: convert audio/recording to text, transcribe a meeting recording or voice memo, identify who said what in a recording (说话人分离), transcribe m4a/mp3/wav/ogg/flac files, or mentions 录音转文字/豆包/火山引擎/Volcengine/Doubao ASR/Atlas Cloud ASR. Also use when the user has an audio file and needs a transcript, even if they don't explicitly say 'transcribe'. Do NOT use for real-time/streaming speech recognition, text-to-speech (TTS), live captioning, or audio format conversion."
 allowed-tools: "Bash(python3:*)"
 homepage: https://www.volcengine.com/docs/6561/1354868
 metadata:
@@ -122,6 +122,22 @@ python3 {baseDir}/scripts/transcribe.py https://example.com/audio.mp3  # direct 
 python3 {baseDir}/scripts/transcribe.py /path/to/audio.m4a --srt --out /tmp/subs.srt  # SRT subtitles / SRT 字幕
 ```
 
+### Optional Atlas Cloud provider / 可选 Atlas Cloud 路由
+
+Keep Volcengine as the default provider. Use Atlas Cloud only when the user
+explicitly requests it or already has `ATLASCLOUD_API_KEY` configured:
+
+```bash
+export ATLASCLOUD_API_KEY="your_api_key"
+python3 {baseDir}/scripts/transcribe.py /path/to/audio.wav --provider atlascloud
+python3 {baseDir}/scripts/transcribe.py https://example.com/audio.mp3 --provider atlascloud --srt
+```
+
+The Atlas Cloud route uses `bytedance/seed-asr-2.0`, accepts WAV, MP3, OGG, and
+raw audio, and can send local files as Base64 without a TOS bucket. It submits
+once and only retries prediction status reads. `--tier` and `--query` remain
+Volcengine-only options.
+
 ### Recognition tiers (`--tier`) / 识别版本
 
 ```bash
@@ -165,7 +181,9 @@ python3 {baseDir}/scripts/transcribe.py https://your-bucket.tos.volces.com/audio
 
 ## Credentials
 
-You need 4 environment variables. Follow these steps carefully — the guided setup below saves you 1-2 hours of digging through Volcengine docs.
+The default Volcengine route needs 4 environment variables. The optional Atlas
+Cloud route needs only `ATLASCLOUD_API_KEY`. Follow these steps carefully — the
+guided setup below saves you 1-2 hours of digging through Volcengine docs.
 
 你需要设置 4 个环境变量。按以下步骤操作——这份引导能帮你节省 1-2 小时翻文档踩坑的时间。
 
