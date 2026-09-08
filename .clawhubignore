@@ -1,0 +1,11 @@
+# Internal development notes — not part of the shipped skill.
+#
+# references/skill-guide-insights.md is a note from a design session that opens
+# with "请消化这些信息并执行改进" (digest this and carry out the improvements).
+# Shipping it means the package contains text directing an agent to modify the
+# skill repository, which is unrelated to transcribing audio and which the
+# ClawHub audit flagged on v0.21.0. Development notes stay in git; they do not
+# belong in the published artifact.
+references/skill-guide-insights.md
+references/trigger-tests.md
+governance.yaml
