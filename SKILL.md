@@ -49,7 +49,7 @@ metadata:
       },
   }
   author: vahnxu
-  version: 0.21.1
+  version: 0.22.0
 ---
 
 ## Setup Guidance Notes
@@ -192,7 +192,8 @@ python3 {baseDir}/scripts/transcribe.py https://your-bucket.tos.volces.com/audio
 ## Dependencies
 
 - Python 3.9+
-- `requests`: `pip install requests`
+- `requests`, pinned in `requirements.txt`: `pip install -r requirements.txt`
+  (pinned deliberately — an unpinned install lets the dependency set change after review, and `requests` runs in the same process as the transcriber)
 
 ## Credentials
 

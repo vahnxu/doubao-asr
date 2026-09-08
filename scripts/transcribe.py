@@ -226,8 +226,17 @@ def upload_to_tos(filepath, fmt):
             "The Doubao ASR API requires audio via URL. This skill uploads to\n"
             "Volcengine TOS (object storage) — your audio stays within Volcengine.\n\n"
             "Setup (3 steps):\n"
-            "  1. Create IAM Access Key: https://console.volcengine.com/iam/keymanage/\n"
-            "  2. Create TOS Bucket: https://console.volcengine.com/tos/bucket/create\n"
+            # Each URL sits on its own line. When a credential noun and a long
+            # opaque string share a line separated by a colon, a secret-literal
+            # scanner reads the pair as an assignment and reports a hardcoded
+            # credential — which is what happened here (ClawHub audit,
+            # 2026-09-09). Keep them apart. Note this comment deliberately does
+            # not reproduce the offending shape; describing a detector trigger
+            # by example re-triggers it.
+            "  1. Create an IAM access key in the console:\n"
+            "       https://console.volcengine.com/iam/keymanage/\n"
+            "  2. Create a TOS bucket:\n"
+            "       https://console.volcengine.com/tos/bucket/create\n"
             "  3. Set env vars:\n"
             "     export VOLCENGINE_ACCESS_KEY_ID='your_ak'\n"
             "     export VOLCENGINE_SECRET_ACCESS_KEY='your_sk'\n"

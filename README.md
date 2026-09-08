@@ -33,7 +33,7 @@ Available on [ClawHub](https://clawhub.com) as `doubao-asr`.
 ```bash
 git clone https://github.com/vahnxu/doubao-asr.git
 cd doubao-asr
-pip install requests
+pip install -r requirements.txt   # pins requests to a reviewed version
 python3 scripts/transcribe.py /path/to/audio.m4a
 ```
 
