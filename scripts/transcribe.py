@@ -555,7 +555,12 @@ def main():
                              "offpeak (闲时版, cheapest, async queue, completes within 24h)")
     parser.add_argument("--query", metavar="REQUEST_ID",
                         help="Query a previously submitted offpeak (闲时版) task by its request_id")
-    parser.add_argument("--format", dest="fmt", help="Audio format (auto-detected from extension)")
+    parser.add_argument(
+        "--format", dest="fmt", choices=sorted(set(FORMAT_MAP.values())),
+        help="Audio format (auto-detected from the file extension; this only "
+             "labels the codec for the API, it does not authorise uploading a "
+             "file that is not audio)",
+    )
     parser.add_argument("--out", help="Output file path (default: stdout)")
     # Output format selectors are mutually exclusive; default is plain text.
     fmt_group = parser.add_mutually_exclusive_group()
@@ -598,9 +603,22 @@ def main():
         if not os.path.isfile(args.audio):
             sys.exit(f"File not found: {args.audio}")
         ext = os.path.splitext(args.audio)[1].lower()
-        fmt = args.fmt or FORMAT_MAP.get(ext)
-        if not fmt:
-            sys.exit(f"Unknown audio format: {ext}. Use --format to specify.")
+        # The extension decides WHETHER this file may be uploaded at all;
+        # --format only decides which codec label to send.
+        #
+        # Previously --format took precedence, so it doubled as an override of
+        # the "is this an audio file" check: `transcribe.py ~/.ssh/id_rsa
+        # --format mp3` would upload that file to object storage and hand it to
+        # a third-party service. A flag that names a codec must not also grant
+        # permission to send an arbitrary local file.
+        if ext not in FORMAT_MAP:
+            sys.exit(
+                f"Refusing to upload {args.audio!r}: {ext or 'no extension'} is not a "
+                f"recognised audio extension ({', '.join(sorted(FORMAT_MAP))}).\n"
+                "This file would be sent to Volcengine for transcription. Rename it "
+                "to its real audio extension if it is genuinely audio."
+            )
+        fmt = args.fmt or FORMAT_MAP[ext]
         audio_url = upload_audio(args.audio, fmt)
 
     speakers = not args.no_speakers

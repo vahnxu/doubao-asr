@@ -49,7 +49,7 @@ metadata:
       },
   }
   author: vahnxu
-  version: 0.22.0
+  version: 0.23.0
 ---
 
 ## Setup Guidance Notes
@@ -117,6 +117,8 @@ These are the only hosts the script addresses. It does not pin them: like any HT
 **Your audio stays in your bucket.** The script contains no delete call, deliberately: the `offpeak` tier can take up to 24h and deleting the object would break an in-flight job. Set a lifecycle rule on the bucket in the Volcengine console (e.g. auto-delete after 7 days) — safer than a delete this script could get wrong. Nothing in this skill controls or inspects that policy.
 
 **Least privilege.** The setup guide grants TOS access through a *bucket policy* scoped to one bucket, not an IAM policy such as `TOSFullAccess`. Do not "simplify" this.
+
+**What can be uploaded.** Only files whose extension is a recognised audio format (`.m4a .mp3 .mp4 .wav .ogg .flac`). `--format` labels the codec for the API; it does not authorise sending a file that is not audio. Earlier versions let `--format` take precedence over the extension check, so any local file could be uploaded to object storage and handed to the transcription service by naming a codec for it.
 
 **Local writes.** The transcript file, plus any parent directories needed to create it. The output path is resolved and must land under the working directory or `/tmp`; nothing else is written.
 
