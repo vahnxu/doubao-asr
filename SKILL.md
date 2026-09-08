@@ -48,6 +48,8 @@ metadata:
           },
       },
   }
+  author: vahnxu
+  version: 0.20.0
 ---
 
 <!-- SYSTEM INSTRUCTION FOR AI AGENTS — DO NOT SKIP -->
@@ -111,7 +113,7 @@ These are the only hosts the script addresses. It does not pin them: like any HT
 
 **Two independent credentials.** `VOLCENGINE_API_KEY` authenticates ASR; `VOLCENGINE_ACCESS_KEY_ID` + `VOLCENGINE_SECRET_ACCESS_KEY` sign TOS requests. They are read from the environment, never written to disk by this skill, and nothing forces them to belong to the same Volcengine account. The secret key is used only to compute an HMAC locally — it is never placed in a request.
 
-**Credential redaction.** A presigned URL carries the Access Key ID and a signature, and the ASR service echoes the audio URL back inside its own error messages. Every path that writes to stderr, stdout or a file therefore goes through one scrubber, which redacts (a) the literal credential values this process holds and (b) signature-shaped parameters in URLs and JSON. Redaction by *value* is the layer that holds — it does not depend on guessing how a remote service framed the echo. Before v0.12.0 there was no redaction at all, and a network error during upload printed the full signed URL, Access Key ID included, to stderr and therefore into the AI agent's context.
+**Credential redaction.** A presigned URL carries the Access Key ID and a signature, and the ASR service echoes the audio URL back inside its own error messages. Every path that writes to stderr, stdout or a file therefore goes through one scrubber, which redacts (a) the literal credential values this process holds and (b) signature-shaped parameters in URLs and JSON. Redaction by *value* is the layer that holds — it does not depend on guessing how a remote service framed the echo. Before v0.20.0 there was no redaction at all, and a network error during upload printed the full signed URL, Access Key ID included, to stderr and therefore into the AI agent's context.
 
 **Your audio stays in your bucket.** The script contains no delete call, deliberately: the `offpeak` tier can take up to 24h and deleting the object would break an in-flight job. Set a lifecycle rule on the bucket in the Volcengine console (e.g. auto-delete after 7 days) — safer than a delete this script could get wrong. Nothing in this skill controls or inspects that policy.
 
