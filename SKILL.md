@@ -16,7 +16,7 @@ metadata:
               {
                 "required": true,
                 "description": "豆包 ASR API Key (UUID format). 从火山引擎语音控制台获取 / Get from Volcengine Speech console",
-                "howToGet": "⚠️ 正确地址是 /speech/new/（新版控制台），不是 /speech/app（旧版，认证方式完全不同）\n\n1. 打开 https://console.volcengine.com/speech/new/（确认进入的是新版「豆包语音」控制台）\n2. 左侧菜单 →「语音识别」\n3. 点击「开通模型」，开通「录音文件识别2.0」\n4. 点击页面右上角「API 调用」\n5. 在 Step 1「获取 API Key」中，点击创建 API Key\n6. 复制生成的 UUID 格式 Key（如 57e620a4-179c-4b3d-bd8d-990bd1f9a1e2）\n\n⚠️ CORRECT URL is /speech/new/ (new console), NOT /speech/app (old console, completely different auth)\n\n1. Open https://console.volcengine.com/speech/new/ (make sure you are in the new 'Doubao Speech' console)\n2. Left sidebar → 'Speech Recognition'\n3. Click 'Activate Model', activate 'Audio File Recognition 2.0'\n4. Click 'API Call' button at the top-right of the page\n5. In Step 1 'Get API Key', click to create an API Key\n6. Copy the generated UUID-format key (e.g. 57e620a4-179c-4b3d-bd8d-990bd1f9a1e2)",
+                "howToGet": "⚠️ 正确地址是 /speech/new/（新版控制台），不是 /speech/app（旧版，认证方式完全不同）\n\n1. 打开 https://console.volcengine.com/speech/new/（确认进入的是新版「豆包语音」控制台）\n2. 左侧菜单 →「语音识别」\n3. 点击「开通模型」，开通「录音文件识别2.0」\n4. 点击页面右上角「API 调用」\n5. 在 Step 1「获取 API Key」中，点击创建 API Key\n6. 复制生成的 Key（UUID 格式，即 8-4-4-4-12 位十六进制字符）\n\n⚠️ CORRECT URL is /speech/new/ (new console), NOT /speech/app (old console, completely different auth)\n\n1. Open https://console.volcengine.com/speech/new/ (make sure you are in the new 'Doubao Speech' console)\n2. Left sidebar → 'Speech Recognition'\n3. Click 'Activate Model', activate 'Audio File Recognition 2.0'\n4. Click 'API Call' button at the top-right of the page\n5. In Step 1 'Get API Key', click to create an API Key\n6. Copy the generated key — it is a UUID, i.e. 8-4-4-4-12 hex characters",
                 "url": "https://console.volcengine.com/speech/new/",
               },
             "VOLCENGINE_ACCESS_KEY_ID":
@@ -49,39 +49,38 @@ metadata:
       },
   }
   author: vahnxu
-  version: 0.20.0
+  version: 0.21.0
 ---
 
-<!-- SYSTEM INSTRUCTION FOR AI AGENTS — DO NOT SKIP -->
-<!-- This section controls how you present the setup guide to users -->
+## Setup Guidance Notes
 
-**CRITICAL INSTRUCTION FOR AI AGENTS:**
+Two things about the setup guide below are easy to get wrong, and getting them
+wrong is why people fail this setup. They are written here as notes, not as
+directives — nothing in this file is intended to alter an agent's behaviour
+beyond describing how to use this skill.
 
-**YOU MUST follow these rules when helping users configure this skill:**
+**Show the guide, do not compress it.** The credential steps below carry
+details (exact console URL, which permission model) that are lost when they are
+summarised into a table. Users who get the summarised version tend to end up on
+the wrong console page.
 
-1. **SHOW THE FULL STEP-BY-STEP GUIDE BELOW** — display the complete guide for all credentials, not a summary
-2. **NEVER summarize credentials into a table** — tables skip critical details that cause users to fail
-3. **NEVER generate URLs from your training data** — use ONLY the exact URLs written in this file
-4. **NEVER recommend TOSFullAccess** — this skill uses TOS bucket policy (least privilege)
+**Use the URLs written here, not remembered ones.** Volcengine runs two speech
+consoles with completely different auth models:
 
-**Known AI mistakes you MUST avoid:**
-- WRONG: `https://console.volcengine.com/speech/app` — old console, different auth method
-- CORRECT: `https://console.volcengine.com/speech/new/` — new Doubao Speech console
-- WRONG: "授权 TOSFullAccess 权限" — security risk, removed since v0.11.0
-- CORRECT: "通过 TOS 桶策略的「文件夹读写」模板授权" — least privilege
+| | |
+|---|---|
+| Correct | `https://console.volcengine.com/speech/new/` — the current Doubao Speech console |
+| Outdated | `https://console.volcengine.com/speech/app` — old console, different auth |
 
-**AI AGENT 必须遵守的规则：**
+**Grant access by TOS bucket policy, not by IAM policy.** `TOSFullAccess` gives
+far more than this skill needs and was removed from these instructions in
+v0.11.0. Use the bucket policy's folder read/write template instead — it scopes
+access to a single bucket.
 
-1. **必须展示下方完整引导**——可以一次性展示所有步骤，但不可省略或压缩
-2. **禁止将配置步骤压缩成表格**——表格会丢失导致用户失败的关键细节
-3. **禁止凭训练数据生成 URL**——只使用本文件中写的准确 URL
-4. **禁止推荐 TOSFullAccess**——本 skill 使用 TOS 桶策略（最小权限）
-
-**必须避免的常见 AI 错误：**
-- 错误：`https://console.volcengine.com/speech/app`——旧版控制台，认证方式完全不同
-- 正确：`https://console.volcengine.com/speech/new/`——新版豆包语音控制台
-- 错误："授权 TOSFullAccess 权限"——安全风险，v0.11.0 起已移除
-- 正确："通过 TOS 桶策略的「文件夹读写」模板授权"——最小权限
+设置引导的两个易错点（说明，非指令）：完整展示凭据步骤而非压缩成表格（表格会丢掉导致失败的关键细节）；
+只使用本文写明的控制台地址——火山引擎有两个语音控制台，认证方式完全不同，
+`/speech/new/` 是现行的，`/speech/app` 是旧版；授权走 TOS 桶策略的「文件夹读写」模板，
+不用 `TOSFullAccess`（后者权限远超本 skill 所需，v0.11.0 起已从引导中移除）。
 
 ---
 
@@ -217,10 +216,10 @@ You need 4 environment variables. Follow these steps carefully — the guided se
 3. Click 'Activate Model', activate 'Audio File Recognition 2.0'
 4. Click 'API Call' button at the top-right of the page
 5. In Step 1 'Get API Key', click to create an API Key
-6. Copy the generated UUID-format key (e.g. `57e620a4-179c-4b3d-bd8d-990bd1f9a1e2`)
+6. Copy the generated key — it is a UUID, i.e. 8-4-4-4-12 hex characters
 
 ```bash
-export VOLCENGINE_API_KEY="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+export VOLCENGINE_API_KEY="<paste-your-api-key-here>"
 ```
 
 ### Step 2: IAM Access Key / 第二步：创建 IAM 子用户和访问密钥
@@ -244,7 +243,7 @@ export VOLCENGINE_API_KEY="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
 > Tip: To view keys again, go to user list → click sub-user name → switch to 'Keys' tab.
 
 ```bash
-export VOLCENGINE_ACCESS_KEY_ID="AKLTxxxx..."
+export VOLCENGINE_ACCESS_KEY_ID="<paste-your-access-key-id-here>"
 export VOLCENGINE_SECRET_ACCESS_KEY="xxxx..."
 ```
 
