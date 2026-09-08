@@ -1,7 +1,7 @@
 ---
 name: doubao-asr（豆包语音转写）
 description: "Transcribe recorded audio files to text via Doubao Seed-ASR 2.0 (豆包录音文件识别模型2.0) from ByteDance/Volcengine. Best-in-class Chinese speech recognition with speaker diarization. Use this skill whenever the user wants to: convert audio/recording to text, transcribe a meeting recording or voice memo, identify who said what in a recording (说话人分离), transcribe m4a/mp3/wav/ogg/flac files, or mentions 录音转文字/豆包/火山引擎/Volcengine/Doubao ASR. Also use when the user has an audio file and needs a transcript, even if they don't explicitly say 'transcribe'. Do NOT use for real-time/streaming speech recognition, text-to-speech (TTS), live captioning, or audio format conversion."
-allowed-tools: "Bash(python3:*)"
+allowed-tools: "Bash(python3 scripts/transcribe.py:*)"
 homepage: https://www.volcengine.com/docs/6561/1354868
 metadata:
   {
@@ -88,6 +88,36 @@ metadata:
 Transcribe audio files via ByteDance Volcengine's **Seed-ASR 2.0 Standard** (豆包录音文件识别模型2.0-标准版) API. Best-in-class accuracy for Chinese (Mandarin, Cantonese, Sichuan dialect, etc.) and supports 13+ languages.
 
 调用字节跳动火山引擎**豆包录音文件识别模型2.0-标准版**（Seed-ASR 2.0 Standard）转写音频文件。中文识别（普通话、粤语、四川话等方言）准确率业界领先，支持 13+ 种语言。
+
+## Security & Data Handling
+
+Speech recognition means your recording leaves your machine. Here is where it goes, stated to match what the code actually does.
+
+**Two modes, and they differ:**
+
+- **Local file** (`transcribe.py meeting.m4a`) — the file is uploaded to **your own** Volcengine TOS bucket (`VOLCENGINE_TOS_BUCKET`), and a presigned URL valid for 1 hour is handed to the ASR service so it can read the file back.
+- **URL** (`transcribe.py https://.../audio.mp3`) — no upload happens. The URL you pass is sent to the ASR service as-is, and whatever it points at is fetched by Volcengine.
+
+The skill author receives nothing — no audio, no transcript, no credentials. There is no telemetry endpoint anywhere in this script. (That statement covers this script only; it is not a claim about your OS, the `requests` library, or Volcengine's own logging.)
+
+**Network egress:**
+
+| Destination | When | Purpose |
+|---|---|---|
+| `<your-bucket>.tos-<region>.volces.com` | local-file mode only | Signed PUT of your audio |
+| `openspeech.bytedance.com` | always | ASR submit / query |
+
+These are the only hosts the script addresses. It does not pin them: like any HTTP client, requests can be diverted by a redirect or by proxy environment variables, so this is a statement about the code's intent, not a network-level guarantee.
+
+**Two independent credentials.** `VOLCENGINE_API_KEY` authenticates ASR; `VOLCENGINE_ACCESS_KEY_ID` + `VOLCENGINE_SECRET_ACCESS_KEY` sign TOS requests. They are read from the environment, never written to disk by this skill, and nothing forces them to belong to the same Volcengine account. The secret key is used only to compute an HMAC locally — it is never placed in a request.
+
+**Credential redaction.** A presigned URL carries the Access Key ID and a signature, and the ASR service echoes the audio URL back inside its own error messages. Every path that writes to stderr, stdout or a file therefore goes through one scrubber, which redacts (a) the literal credential values this process holds and (b) signature-shaped parameters in URLs and JSON. Redaction by *value* is the layer that holds — it does not depend on guessing how a remote service framed the echo. Before v0.12.0 there was no redaction at all, and a network error during upload printed the full signed URL, Access Key ID included, to stderr and therefore into the AI agent's context.
+
+**Your audio stays in your bucket.** The script contains no delete call, deliberately: the `offpeak` tier can take up to 24h and deleting the object would break an in-flight job. Set a lifecycle rule on the bucket in the Volcengine console (e.g. auto-delete after 7 days) — safer than a delete this script could get wrong. Nothing in this skill controls or inspects that policy.
+
+**Least privilege.** The setup guide grants TOS access through a *bucket policy* scoped to one bucket, not an IAM policy such as `TOSFullAccess`. Do not "simplify" this.
+
+**Local writes.** The transcript file, plus any parent directories needed to create it. The output path is resolved and must land under the working directory or `/tmp`; nothing else is written.
 
 ## Sending audio to OpenClaw
 
