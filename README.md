@@ -66,6 +66,21 @@ python3 scripts/transcribe.py /path/to/audio.m4a --tier offpeak            # pri
 python3 scripts/transcribe.py --query <request_id> --tier offpeak          # fetch result when ready
 ```
 
+### Optional Atlas Cloud provider
+
+The default route remains Volcengine. If you already use Atlas Cloud, the same
+script can run Seed-ASR 2.0 through its optional provider without configuring a
+TOS bucket:
+
+```bash
+export ATLASCLOUD_API_KEY="your_api_key"
+python3 scripts/transcribe.py /path/to/audio.wav --provider atlascloud
+python3 scripts/transcribe.py https://example.com/audio.mp3 --provider atlascloud --srt
+```
+
+This route supports WAV, MP3, OGG, and raw audio. It submits one generation
+request and polls only the returned prediction.
+
 ## Sample output
 
 With speaker diarization enabled (default), the transcript is grouped by speaker:
@@ -86,7 +101,9 @@ Speaker 1:
 
 ## Credentials
 
-See the detailed setup guide in [SKILL.md](./SKILL.md#credentials-setup) — with step-by-step instructions for each environment variable.
+The default Volcengine route uses the variables below. The optional Atlas Cloud
+route uses only `ATLASCLOUD_API_KEY`. See the detailed setup guide in
+[SKILL.md](./SKILL.md#credentials-setup) for the Volcengine setup.
 
 | Variable | Required | Description |
 |---|---|---|
@@ -95,6 +112,7 @@ See the detailed setup guide in [SKILL.md](./SKILL.md#credentials-setup) — wit
 | `VOLCENGINE_SECRET_ACCESS_KEY` | Yes | IAM Secret Access Key |
 | `VOLCENGINE_TOS_BUCKET` | Yes | TOS bucket name |
 | `VOLCENGINE_TOS_REGION` | Yes | TOS region code, must match bucket region. Overseas: e.g. `cn-hongkong`, `ap-southeast-1`; China: `cn-beijing` |
+| `ATLASCLOUD_API_KEY` | Atlas only | Atlas Cloud API key used with `--provider atlascloud` |
 
 ## Supported formats
 
