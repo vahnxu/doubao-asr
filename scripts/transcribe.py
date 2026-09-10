@@ -85,6 +85,76 @@ TOS_REGION = os.environ.get("VOLCENGINE_TOS_REGION", "cn-beijing")
 TOS_BUCKET = os.environ.get("VOLCENGINE_TOS_BUCKET", "")
 
 
+def _install_scrubbing_excepthook():
+    """Route uncaught tracebacks through the scrubber as well.
+
+    Scrubbing each `except` branch is an enumeration, and an enumeration
+    misses whichever branch is not listed — `requests` raises ReadTimeout
+    (verified 2026-09-08) outside the SSLError/ConnectionError clause on the
+    upload PUT, which carries the signed URL. This hook is the single exit
+    every uncaught error must pass through, whatever its type.
+    """
+    import traceback as _tb
+
+    def _hook(exc_type, exc, tb):
+        sys.stderr.write(scrub_secrets("".join(_tb.format_exception(exc_type, exc, tb))))
+
+    sys.excepthook = _hook
+
+
+# Query-parameter shapes, matched case-insensitively. This is a convenience
+# layer only — see the value-based redaction below for why it is not the
+# actual guarantee.
+_SECRET_PARAM_RE = re.compile(
+    r"(X-Tos-[A-Za-z-]+|Signature|Expires)(=|\"\s*:\s*\"|\'\s*:\s*\')([^&\s\"\')<]*)",
+    re.IGNORECASE,
+)
+
+
+def _known_secret_values():
+    """The credential strings this process actually holds."""
+    out = []
+    for var in (
+        "VOLCENGINE_API_KEY",
+        "VOLCENGINE_SECRET_ACCESS_KEY",
+        "VOLCENGINE_ACCESS_KEY_ID",
+    ):
+        val = os.environ.get(var, "").strip()
+        if len(val) >= 8:  # too short to redact safely without mangling output
+            out.append(val)
+    return out
+
+
+def scrub_secrets(text):
+    """Redact credentials from any text on its way to stderr/stdout/disk.
+
+    Two layers, deliberately in this order:
+
+      1. **By value.** Every credential string this process holds is replaced
+         wherever it appears. This is the layer that actually holds, because
+         it does not care how the value was framed — query parameter, JSON
+         body, XML, or bare — and a remote service echoing our request back
+         cannot escape it by changing the syntax.
+      2. **By parameter shape.** Catches signature material we do not hold in
+         a variable (the computed X-Tos-Signature) in URLs and JSON.
+
+    Layer 2 alone is an enumeration of shapes, and an enumeration misses the
+    shape nobody listed — which is exactly how the ASR service's own error
+    body (it echoes the audio URL back) got past the first version of this.
+    Never raises: a scrubber that throws would take out the error path it was
+    supposed to protect.
+    """
+    try:
+        if text is None:
+            return text
+        out = str(text)
+        for secret in _known_secret_values():
+            out = out.replace(secret, "***")
+        return _SECRET_PARAM_RE.sub(lambda m: f"{m.group(1)}{m.group(2)}***", out)
+    except Exception:  # noqa: BLE001
+        return "<error text suppressed: could not be scrubbed safely>"
+
+
 def _tos_sign_v4(method, url, ak, sk, region, expires=3600):
     """Generate a Volcengine TOS V4 presigned URL (query-string auth)."""
     parsed = urlparse(url)
@@ -160,8 +230,17 @@ def upload_to_tos(filepath, fmt):
             "The Doubao ASR API requires audio via URL. This skill uploads to\n"
             "Volcengine TOS (object storage) — your audio stays within Volcengine.\n\n"
             "Setup (3 steps):\n"
-            "  1. Create IAM Access Key: https://console.volcengine.com/iam/keymanage/\n"
-            "  2. Create TOS Bucket: https://console.volcengine.com/tos/bucket/create\n"
+            # Each URL sits on its own line. When a credential noun and a long
+            # opaque string share a line separated by a colon, a secret-literal
+            # scanner reads the pair as an assignment and reports a hardcoded
+            # credential — which is what happened here (ClawHub audit,
+            # 2026-09-09). Keep them apart. Note this comment deliberately does
+            # not reproduce the offending shape; describing a detector trigger
+            # by example re-triggers it.
+            "  1. Create an IAM access key in the console:\n"
+            "       https://console.volcengine.com/iam/keymanage/\n"
+            "  2. Create a TOS bucket:\n"
+            "       https://console.volcengine.com/tos/bucket/create\n"
             "  3. Set env vars:\n"
             "     export VOLCENGINE_ACCESS_KEY_ID='your_ak'\n"
             "     export VOLCENGINE_SECRET_ACCESS_KEY='your_sk'\n"
@@ -192,16 +271,16 @@ def upload_to_tos(filepath, fmt):
                     timeout=120,
                 )
             if resp.status_code not in (200, 201):
-                sys.exit(f"TOS upload failed ({resp.status_code}): {resp.text[:200]}")
+                sys.exit(f"TOS upload failed ({resp.status_code}): {scrub_secrets(resp.text[:200])}")
             break
-        except (requests.exceptions.SSLError, requests.exceptions.ConnectionError) as e:
+        except requests.exceptions.RequestException as e:
             if attempt < max_retries - 1:
                 wait = 2 ** (attempt + 1)
                 print(f"  TOS upload error, retrying in {wait}s... ({attempt+1}/{max_retries})",
                       file=sys.stderr)
                 time.sleep(wait)
             else:
-                sys.exit(f"TOS upload failed after {max_retries} attempts: {e}")
+                sys.exit(f"TOS upload failed after {max_retries} attempts: {scrub_secrets(e)}")
 
     get_url = _tos_sign_v4("GET", url_raw, ak, sk, TOS_REGION, expires=3600)
     return get_url
@@ -232,7 +311,10 @@ KNOWN_ERROR_HINTS = {
 
 def api_error(prefix, status, message):
     """Format a fatal API error, appending an actionable hint for known codes."""
-    text = f"{prefix}: {status} {message}"
+    # The remote message is third-party text and is known to echo our request
+    # back — including the presigned audio URL. It goes through the scrubber
+    # here, at the one place all four call sites share.
+    text = f"{prefix}: {status} {scrub_secrets(message)}"
     hint = KNOWN_ERROR_HINTS.get(status)
     return f"{text}\nHint: {hint}" if hint else text
 
@@ -291,14 +373,14 @@ def submit(audio_url, fmt, tier, speakers=True):
             if status != "20000000":
                 sys.exit(api_error("Submit failed", status, message))
             return request_id
-        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as e:
+        except requests.exceptions.RequestException as e:
             if attempt < max_retries - 1:
                 wait = 2 ** (attempt + 1)
                 print(f"  Submit error, retrying in {wait}s... ({attempt+1}/{max_retries})",
                       file=sys.stderr)
                 time.sleep(wait)
             else:
-                sys.exit(f"Submit failed after {max_retries} attempts: {e}")
+                sys.exit(f"Submit failed after {max_retries} attempts: {scrub_secrets(e)}")
 
 
 def recognize_express(audio_url, fmt, speakers=True, timeout=300):
@@ -321,14 +403,14 @@ def recognize_express(audio_url, fmt, speakers=True, timeout=300):
             if status != "20000000":
                 sys.exit(api_error("Express recognition failed", status, message))
             return resp.json()
-        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as e:
+        except requests.exceptions.RequestException as e:
             if attempt < max_retries - 1:
                 wait = 2 ** (attempt + 1)
                 print(f"  Express error, retrying in {wait}s... ({attempt+1}/{max_retries})",
                       file=sys.stderr)
                 time.sleep(wait)
             else:
-                sys.exit(f"Express recognition failed after {max_retries} attempts: {e}")
+                sys.exit(f"Express recognition failed after {max_retries} attempts: {scrub_secrets(e)}")
 
 
 def poll(request_id, tier, timeout=600, interval=3):
@@ -342,10 +424,10 @@ def poll(request_id, tier, timeout=600, interval=3):
     while elapsed < timeout:
         try:
             resp = requests.post(query_url, headers=headers, json={}, timeout=30)
-        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as e:
+        except requests.exceptions.RequestException as e:
             net_errors += 1
             if net_errors >= max_net_errors:
-                sys.exit(f"Poll failed after {max_net_errors} consecutive network errors: {e}")
+                sys.exit(f"Poll failed after {max_net_errors} consecutive network errors: {scrub_secrets(e)}")
             wait = 2 ** net_errors
             print(f"\n  Poll network error, retrying in {wait}s... ({net_errors}/{max_net_errors})",
                   file=sys.stderr)
@@ -374,7 +456,10 @@ def query_once(request_id, tier):
     of 'done' | 'pending' | 'silent'. Does not loop (offpeak completes within 24h)."""
     cfg = TIERS[tier]
     headers = get_headers(request_id, cfg["resource_id"], sequence=None)
-    resp = requests.post(cfg["query"], headers=headers, json={}, timeout=30)
+    try:
+        resp = requests.post(cfg["query"], headers=headers, json={}, timeout=30)
+    except requests.exceptions.RequestException as e:
+        sys.exit(f"Query failed: {scrub_secrets(e)}")
     status = resp.headers.get("X-Api-Status-Code", "")
     if status == "20000000":
         return "done", resp.json()
@@ -523,7 +608,10 @@ def format_output(data, srt=False, as_json=False):
     result = data.get("result", {})
     utterances = result.get("utterances", [])
     if as_json:
-        return json.dumps(data, ensure_ascii=False, indent=2)
+        # The full service response is third-party data and may echo our
+        # request back; it goes to stdout or to a file, so it takes the same
+        # exit as every other output.
+        return scrub_secrets(json.dumps(data, ensure_ascii=False, indent=2))
     if srt:
         return to_srt(utterances)
     has_speakers = any(
@@ -566,6 +654,7 @@ def write_output(output, out_path):
 
 
 def main():
+    _install_scrubbing_excepthook()
     parser = argparse.ArgumentParser(description="Doubao Seed-ASR 2.0 transcription")
     parser.add_argument("audio", nargs="?", help="Path to audio file (or URL). Omit only with --query.")
     parser.add_argument("--provider", choices=["volcengine", "atlascloud"], default="volcengine",
@@ -575,7 +664,12 @@ def main():
                              "offpeak (闲时版, cheapest, async queue, completes within 24h)")
     parser.add_argument("--query", metavar="REQUEST_ID",
                         help="Query a previously submitted offpeak (闲时版) task by its request_id")
-    parser.add_argument("--format", dest="fmt", help="Audio format (auto-detected from extension)")
+    parser.add_argument(
+        "--format", dest="fmt", choices=sorted(set(FORMAT_MAP.values())),
+        help="Audio format (auto-detected from the file extension; this only "
+             "labels the codec for the API, it does not authorise uploading a "
+             "file that is not audio)",
+    )
     parser.add_argument("--out", help="Output file path (default: stdout)")
     # Output format selectors are mutually exclusive; default is plain text.
     fmt_group = parser.add_mutually_exclusive_group()
@@ -623,9 +717,27 @@ def main():
         if not os.path.isfile(args.audio):
             sys.exit(f"File not found: {args.audio}")
         ext = os.path.splitext(args.audio)[1].lower()
-        fmt = args.fmt or FORMAT_MAP.get(ext)
-        if not fmt:
-            sys.exit(f"Unknown audio format: {ext}. Use --format to specify.")
+        # The extension decides WHETHER this file may be uploaded at all;
+        # --format only decides which codec label to send.
+        #
+        # Previously --format took precedence, so it doubled as an override of
+        # the "is this an audio file" check: `transcribe.py ~/.ssh/id_rsa
+        # --format mp3` would upload that file to object storage and hand it to
+        # a third-party service. A flag that names a codec must not also grant
+        # permission to send an arbitrary local file. This holds for every
+        # provider: the Atlas Cloud route does not use TOS, but it still
+        # base64-encodes the file into the request body.
+        if ext not in FORMAT_MAP:
+            destination = "Atlas Cloud" if args.provider == "atlascloud" else "Volcengine"
+            sys.exit(
+                f"Refusing to upload {args.audio!r}: {ext or 'no extension'} is not a "
+                f"recognised audio extension ({', '.join(sorted(FORMAT_MAP))}).\n"
+                f"This file would be sent to {destination} for transcription. Rename it "
+                "to its real audio extension if it is genuinely audio."
+            )
+        fmt = args.fmt or FORMAT_MAP[ext]
+        # Atlas Cloud takes the file inline (see atlas_audio_source), so the
+        # TOS upload is only needed for the Volcengine route.
         audio_url = args.audio if args.provider == "atlascloud" else upload_audio(args.audio, fmt)
 
     speakers = not args.no_speakers
